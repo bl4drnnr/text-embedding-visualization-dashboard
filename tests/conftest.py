@@ -1,6 +1,7 @@
 import pytest
 from text_embedding_visualization_dashboard.vector_db import VectorDB
 
+
 @pytest.fixture(scope="session")
 def vector_db():
     """Provides a VectorDB instance for testing."""

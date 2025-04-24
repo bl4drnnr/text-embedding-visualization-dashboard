@@ -1,5 +1,6 @@
 import logging
 
+
 def setup_logger(name="my_logger", level=logging.INFO, to_console=True, to_file=True, file_path="logs/app_log.log"):
     logger = logging.getLogger(name)
     logger.setLevel(level)
@@ -8,7 +9,6 @@ def setup_logger(name="my_logger", level=logging.INFO, to_console=True, to_file=
         logger.handlers.clear()
 
     formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S")
-
 
     if to_console:
         console_handler = logging.StreamHandler()
