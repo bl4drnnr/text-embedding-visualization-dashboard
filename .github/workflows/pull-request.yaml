@@ -64,4 +64,4 @@ jobs:
 
       - name: Run tests
         # For example, using `pytest`
-        run: uv run pytest tests --envfile=local.env
+        run: uv run pytest tests --envfile=tests/local.env
