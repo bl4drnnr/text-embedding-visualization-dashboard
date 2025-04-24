@@ -1,0 +1,67 @@
+name: Check Code Integration
+
+on:
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+    # Allows manual triggering of the workflow
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  pre-commit-checks:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+
+      - name: Initialize uv
+        run: |
+          uv sync --group dev
+
+      - name: Run pre-commit checks
+        run: |
+          uv run pre-commit run --all-files
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Set up Docker Compose
+        uses: docker/setup-compose-action@v1
+
+
+  run-tests:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install the project
+        run: uv sync --all-extras --dev
+
+
+      - name: Run tests
+        # For example, using `pytest`
+        run: uv run pytest tests --envfile=local.env
