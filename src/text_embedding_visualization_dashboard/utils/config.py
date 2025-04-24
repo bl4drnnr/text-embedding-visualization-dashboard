@@ -6,7 +6,7 @@ load_dotenv()
 
 
 class Configs(BaseModel):
-    VECTOR_DB_HTTP_PORT: str = os.getenv("VECTOR_DB_HTTP_PORT")
+    VECTOR_DB_HTTP_PORT: str = os.getenv("VECTOR_DB_HTTP_PORT", 8800)
 
 
 cfg = Configs()
