@@ -1,37 +1,63 @@
 import chromadb
 from text_embedding_visualization_dashboard.utils import cfg, setup_logger
+from text_embedding_visualization_dashboard.models.vectordb_models import QUERY_INCLUDE, GET_INCLUDE
 from datetime import datetime
-from chromadb.api.models.Collection import Collection
+from typing import Literal
 
 logger = setup_logger("chroma_db-logger")
 
 
 class VectorDB:
     def __init__(self):
-        logger.info(cfg.VECTOR_DB_HTTP_PORT)
         self.client = chromadb.HttpClient(
             host="localhost",
             port=cfg.VECTOR_DB_HTTP_PORT,
         )
 
     def get_all_collections(self):
+        """
+        Get all collections from ChromaDb
+        :return:
+        """
         logger.info("Getting all collections")
         return self.client.list_collections()
 
     def get_collection(self, name: str):
+        """
+        Get collection by name from ChromaDb
+        :param name:
+        :return: Collection name
+        """
         logger.info(f"Getting collection {name}")
         return self.client.get_collection(name)
 
-    def add_collection(self, name: str):
-        logger.info(self.get_all_collections())
+    def add_collection(self, name: str, distance: Literal["cosine", "l2", "ip"] = "cosine"):
+        """
+        Adds a collection to the ChromaDb
+        :param name: name of the collection
+        :param distance: Metric for calculating the distance between two vectors: cosine | L2 | inner product
+        :return:
+        """
         if name not in [elem.name for elem in self.get_all_collections()]:
-            self.client.create_collection(name=name, metadata={"created": str(datetime.now())})
+            self.client.create_collection(
+                name=name,
+                metadata={"created": str(datetime.now())},
+                configuration={
+                    "hnsw": {"space": distance},
+                    # TODO: Replace it with our embedding function
+                    # "embedding_function": cohere_ef
+                },
+            )
             logger.info(f"Created collection {name}")
-
         else:
             logger.info(f"Collection {name} already exists.")
 
-    def delete_collection(self, name: str):
+    def delete_collection(self, name: str) -> None:
+        """
+        Deletes a collection
+        :param name: ChromaDb collection name
+        :return: None
+        """
         logger.info(f"Deleting collection {name}")
         if name not in [elem.name for elem in self.get_all_collections()]:
             logger.error(f"Collection {name} does not exist.")
@@ -39,20 +65,59 @@ class VectorDB:
         else:
             self.client.delete_collection(name)
 
-    @staticmethod
     def add_items_to_collection(
-        collection: Collection, texts: list[str], embeddings: list[list[float]], ids: list[str] | None = None
-    ):
+        self,
+        name: str,
+        texts: list[str],
+        embeddings: list[list[float]],
+        ids: list[str] | None = None,
+        metadata: list[dict[str, str]] | None = None,
+    ) -> None:
+        """ "
+        Adds items to a collection
+        :param name: collection name
+        :param texts: Texts to store in db
+        :param embeddings: Texts embeddings
+        :param ids: Ids to store in db, None by default
+        :param metadata: Metadata to store in db, None by default. Eg: {{"label": "ClassA"}, {"label": "ClassB"}}
+        :return:None"""
+
+        collection = self.get_collection(name)
         if ids is None:
             ids = [f"doc_{i}" for i in range(len(texts))]
 
-        collection.add(documents=texts, embeddings=embeddings, ids=ids)
+        add_kwargs = {
+            "documents": texts,
+            "embeddings": embeddings,
+            "ids": ids,
+        }
+
+        if metadata is not None:
+            add_kwargs["metadatas"] = metadata
+
+        collection.add(**add_kwargs)
         logger.info(f"Added {len(texts)} items to {collection.name}")
 
-    @staticmethod
     def query_collection(
-        collection: Collection, query: str, n_results: int = 5, include=["documents", "distances", "metadatas"]
+        self,
+        name: str,
+        query: str,
+        n_results: int = 5,
+        include: QUERY_INCLUDE = [
+            "metadatas",
+            "documents",
+            "distances",
+        ],
     ):
+        """
+        Query collection
+        :param name: collection name
+        :param query: Text to search for
+        :param n_results: Results to return
+        :param include: A list of what to include in the results. Can contain `"embeddings"`, `"metadatas"`, `"documents"`, `"distances"`. Ids are always included. Defaults to `["metadatas", "documents", "distances"]`. Optional.
+
+        :return:"""
+        collection = self.get_collection(name)
         # TODO: Here we should use our own function for embedding, or pass that function to chroma client during creation of collection:
         # https://cookbook.chromadb.dev/embeddings/bring-your-own-embeddings/
         results = collection.query(
@@ -62,3 +127,37 @@ class VectorDB:
         )
 
         return results
+
+    def query_collection_by_metadata(
+        self, name: str, metadata: dict, include: GET_INCLUDE = ["documents", "metadatas"]
+    ):
+        """
+        Query collection by metadata. Useful for grabbing all items with same label.
+        :param name: collection name
+        :param metadata: Metadata to search for, eg: {"label" : "ClassA"}
+        :param include: A list of what to include in the results. Can contain `"embeddings"`, `"metadatas"`, `"documents"``. Ids are always included. Defaults to `["metadatas", "documents"]`. Optional.
+
+        :return:
+        """
+        logger.info(f"Querying collection {name} by metadata {metadata}")
+        collection = self.get_collection(name)
+        return collection.get(where=metadata, include=include)
+
+    def get_all_items_from_collection(
+        self,
+        name: str,
+        include: GET_INCLUDE = [
+            "metadatas",
+            "documents",
+        ],
+    ):
+        """
+        Get all items from collection
+        :param name: collection name
+        :param include: A list of what to include in the results. Can contain `"embeddings"`, `"metadatas"`, `"documents"``. Ids are always included. Defaults to `["metadatas", "documents"]`. Optional.
+
+        :return:
+        """
+        logger.info(f"Getting all items from collection {name}")
+        collection = self.get_collection(name)
+        return collection.get(include=include)

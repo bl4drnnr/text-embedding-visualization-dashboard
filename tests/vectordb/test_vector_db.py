@@ -29,21 +29,51 @@ def test_add_documents(vector_db, collection_name):
     ids = [f"doc_{i}" for i in range(len(texts))]
     model = SentenceTransformer("all-MiniLM-L6-v2")
     embeddings = model.encode(texts).tolist()
-    collection = vector_db.get_collection(collection_name)
-    vector_db.add_items_to_collection(collection, texts, embeddings, ids)
-    documents_data = collection.get()
+    metadatas = [
+        {"label": "Fruit"},
+        {"label": "Fruit"},
+        {"label": "Fruit"},
+        {"label": "Sport"},
+        {"label": "Sport"},
+        {"label": "Sport"},
+        {"label": "Technology"},
+        {"label": "Technology"},
+        {"label": "Technology"},
+    ]
 
-    assert documents_data.get("documents")
+    vector_db.add_items_to_collection(collection_name, texts, embeddings, ids, metadatas)
+
+    assert True
 
 
 def test_query_collection(vector_db, collection_name):
-    collection = vector_db.get_collection(collection_name)
-    results = vector_db.query_collection(collection, query="Do you know something about sport?", n_results=3)
+    results = vector_db.query_collection(collection_name, query="Do you know something about sport?", n_results=3)
     documents = results.get("documents")[0]
 
     assert len(documents) == 3
     assert "Soccer is a popular sport" in documents
     assert "Gym training increases strength" in documents
+
+
+def test_get_all_items_from_collection(vector_db, collection_name):
+    all_items = vector_db.get_all_items_from_collection(collection_name)
+    assert len(all_items.get("documents")) == 9
+
+
+def test_query_items_by_metadata(vector_db, collection_name):
+    items = vector_db.query_collection_by_metadata(collection_name, metadata={"label": "Sport"})
+    documents = items.get("documents")
+    assert len(documents) == 3
+    assert "Soccer is a popular sport" in documents
+    assert "Gym training increases strength" in documents
+    assert "Messi scored a goal" in documents
+
+    items = vector_db.query_collection_by_metadata(collection_name, metadata={"label": "Fruit"})
+    documents = items.get("documents")
+    assert len(documents) == 3
+    assert "Apples are red" in documents
+    assert "I like eating bananas" in documents
+    assert "Oranges are full of vitamin C" in documents
 
 
 def test_delete_collection(vector_db, collection_name):
