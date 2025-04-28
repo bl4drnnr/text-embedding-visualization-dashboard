@@ -1,10 +1,17 @@
-To start chromadb:
+To start the application, run:
 
 ```
 docker-compose up -d --build
 ```
 
+
+After the containers are up, open your browser and navigate to:
+```
+http://localhost:8501/
+```
+
 As a test dataset [`GoEmotions` dataset](https://research.google/blog/goemotions-a-dataset-for-fine-grained-emotion-classification/) by Google will be used. It is located in the data folder, and also you can read more about that on [GitHub](https://github.com/google-research/google-research/tree/master/goemotions). Once the Docker Compose with all services is set up, use the following command to upload the data to the database and use it:
+
 
 ```bash
 python3 main.py

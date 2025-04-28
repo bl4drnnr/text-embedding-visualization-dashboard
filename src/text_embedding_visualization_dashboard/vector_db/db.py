@@ -1,18 +1,23 @@
 import chromadb
-from text_embedding_visualization_dashboard.utils import cfg, setup_logger
+from text_embedding_visualization_dashboard.utils import setup_logger
 from text_embedding_visualization_dashboard.models.vectordb_models import QUERY_INCLUDE, GET_INCLUDE
 from datetime import datetime
 from typing import Literal, Sequence
 from chromadb.api import Collection, QueryResult, GetResult
+import os
+
 
 logger = setup_logger("chroma_db-logger")
+
+chroma_host = os.getenv("CHROMA_HOST", "localhost")
+chroma_port = int(os.getenv("CHROMA_PORT", "8800"))
 
 
 class VectorDB:
     def __init__(self):
         self.client = chromadb.HttpClient(
-            host="localhost",
-            port=cfg.VECTOR_DB_HTTP_PORT,
+            host=chroma_host,
+            port=chroma_port,
         )
 
     def get_all_collections(self) -> Sequence[Collection]:
