@@ -1,7 +1,11 @@
 To start the application, run:
 
 ```
-docker-compose up -d --build
+# Just database
+docker-compose --profile database up -d 
+
+# Entire app
+docker compose --profile full-app up -d 
 ```
 
 

@@ -62,7 +62,7 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Start docker-compose services
-        run: docker compose up -d
+        run: docker compose --profile database up -d
 
       - name: Run tests
         # For example, using `pytest`

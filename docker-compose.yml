@@ -6,6 +6,10 @@ services:
     depends_on: [otel-collector]
     networks:
       - internal
+    profiles:
+      - database
+      - full-app
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.111.0
     command: ["--config=/etc/otel-collector-config.yaml"]
@@ -13,6 +17,10 @@ services:
       - ${PWD}/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     networks:
       - internal
+    profiles:
+      - database
+      - full-app
+
   server:
     image: chromadb/chroma
     volumes:
@@ -27,6 +35,10 @@ services:
     depends_on:
       - otel-collector
       - zipkin
+    profiles:
+      - database
+      - full-app
+
   streamlit:
     build:
       context: .
@@ -44,6 +56,8 @@ services:
       - CHROMA_PORT=8000
     depends_on:
       - server
+    profiles:
+      - full-app
 
 networks:
   internal:
