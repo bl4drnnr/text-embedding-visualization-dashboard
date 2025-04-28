@@ -7,7 +7,7 @@ from src.text_embedding_visualization_dashboard.utils.parse_args import parse_ar
 # UWAGA: Tu w tym momencie są tylko przykładowe testowe funkcje, aby zobaczyć, że ta baza oraz embeddingi działają.
 def main():
     args = parse_args()
-    
+
     model_name = args.model
     dataset = args.dataset
     collection = args.collection
@@ -30,19 +30,10 @@ def main():
         else:
             metadatas = None
 
-        service.batch_process_texts(
-            texts=texts,
-            collection_name=collection,
-            metadatas=metadatas,
-            batch_size=batch_size
-        )
+        service.batch_process_texts(texts=texts, collection_name=collection, metadatas=metadatas, batch_size=batch_size)
 
     def query_goemotion_data(query: str):
-        results = service.query_similar_texts(
-            query_text=query,
-            collection_name=collection,
-            top_k=top_k
-        )
+        results = service.query_similar_texts(query_text=query, collection_name=collection, top_k=top_k)
 
         print(f'\nWyniki dla zapytania: "{query}":\n')
         for idx, item in enumerate(results):

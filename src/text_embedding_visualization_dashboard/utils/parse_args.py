@@ -11,7 +11,7 @@ def parse_args():
 
         python3 main.py --mode query --model all-MiniLM-L6-v2 --collection goemotions_embeddings --query "I love sunny days" --top-k 5
         """,
-        formatter_class=argparse.RawTextHelpFormatter
+        formatter_class=argparse.RawTextHelpFormatter,
     )
 
     parser.add_argument(
@@ -19,7 +19,7 @@ def parse_args():
         type=str,
         required=True,
         choices=["upload", "query"],
-        help="Mode: 'upload' to upload data, 'query' to search similar texts."
+        help="Mode: 'upload' to upload data, 'query' to search similar texts.",
     )
     parser.add_argument(
         "--model",
