@@ -1,6 +1,3 @@
-from sentence_transformers import SentenceTransformer
-
-
 def test_add_collection(vector_db, collection_name):
     collections_number_before_adding = len(vector_db.get_all_collections())
     vector_db.add_collection(collection_name)
@@ -10,7 +7,7 @@ def test_add_collection(vector_db, collection_name):
     assert collections_number_before_adding == collections_number_after_adding - 1
 
 
-def test_add_documents(vector_db, collection_name):
+def test_add_documents(vector_db, collection_name, embedding_model):
     texts = [
         # 🍎 Fruits
         "Apples are red",
@@ -27,8 +24,7 @@ def test_add_documents(vector_db, collection_name):
     ]
 
     ids = [f"doc_{i}" for i in range(len(texts))]
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    embeddings = model.encode(texts).tolist()
+    embeddings = embedding_model.encode(texts).tolist()
     metadatas = [
         {"label": "Fruit"},
         {"label": "Fruit"},
@@ -46,8 +42,9 @@ def test_add_documents(vector_db, collection_name):
     assert True
 
 
-def test_query_collection(vector_db, collection_name):
-    results = vector_db.query_collection(collection_name, query="Do you know something about sport?", n_results=3)
+def test_query_collection(vector_db, collection_name, embedding_model):
+    embeddings = embedding_model.encode("Do you know something about sport?").tolist()
+    results = vector_db.query_collection(collection_name, query_embeddings=embeddings, n_results=3)
     documents = results.get("documents")[0]
 
     assert len(documents) == 3

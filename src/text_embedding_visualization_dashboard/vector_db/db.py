@@ -2,8 +2,10 @@ import chromadb
 from text_embedding_visualization_dashboard.utils import setup_logger
 from text_embedding_visualization_dashboard.models.vectordb_models import QUERY_INCLUDE, GET_INCLUDE
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Sequence
+from chromadb.api import Collection, QueryResult, GetResult
 import os
+
 
 logger = setup_logger("chroma_db-logger")
 
@@ -18,7 +20,7 @@ class VectorDB:
             port=chroma_port,
         )
 
-    def get_all_collections(self):
+    def get_all_collections(self) -> Sequence[Collection]:
         """
         Get all collections from ChromaDb
         :return:
@@ -26,7 +28,7 @@ class VectorDB:
         logger.info("Getting all collections")
         return self.client.list_collections()
 
-    def get_collection(self, name: str):
+    def get_collection(self, name: str) -> Collection:
         """
         Get collection by name from ChromaDb
         :param name:
@@ -35,7 +37,7 @@ class VectorDB:
         logger.info(f"Getting collection {name}")
         return self.client.get_collection(name)
 
-    def add_collection(self, name: str, distance: Literal["cosine", "l2", "ip"] = "cosine"):
+    def add_collection(self, name: str, distance: Literal["cosine", "l2", "ip"] = "cosine") -> None:
         """
         Adds a collection to the ChromaDb
         :param name: name of the collection
@@ -105,18 +107,18 @@ class VectorDB:
     def query_collection(
         self,
         name: str,
-        query: str,
+        query_embeddings: list[float],
         n_results: int = 5,
         include: QUERY_INCLUDE = [
             "metadatas",
             "documents",
             "distances",
         ],
-    ):
+    ) -> QueryResult:
         """
         Query collection
         :param name: collection name
-        :param query: Text to search for
+        :param query: Text embedding to search for
         :param n_results: Results to return
         :param include: A list of what to include in the results. Can contain `"embeddings"`, `"metadatas"`, `"documents"`, `"distances"`. Ids are always included. Defaults to `["metadatas", "documents", "distances"]`. Optional.
 
@@ -125,7 +127,7 @@ class VectorDB:
         # TODO: Here we should use our own function for embedding, or pass that function to chroma client during creation of collection:
         # https://cookbook.chromadb.dev/embeddings/bring-your-own-embeddings/
         results = collection.query(
-            query_texts=[query],  # Chroma will embed this for you
+            query_embeddings=query_embeddings,  # Chroma will embed this for you
             n_results=n_results,  # how many results to return,
             include=include,
         )
@@ -134,7 +136,7 @@ class VectorDB:
 
     def query_collection_by_metadata(
         self, name: str, metadata: dict, include: GET_INCLUDE = ["documents", "metadatas"]
-    ):
+    ) -> GetResult:
         """
         Query collection by metadata. Useful for grabbing all items with same label.
         :param name: collection name
@@ -154,7 +156,7 @@ class VectorDB:
             "metadatas",
             "documents",
         ],
-    ):
+    ) -> GetResult:
         """
         Get all items from collection
         :param name: collection name
