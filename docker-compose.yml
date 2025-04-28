@@ -35,10 +35,13 @@ services:
     volumes:
        - ./:/usr/src/app
     ports:
-      - 8501:8501
+      - "8501:8501"
     image: visualizationapp:latest
     networks:
       - internal
+    environment:
+      - CHROMA_HOST=server
+      - CHROMA_PORT=8000
     depends_on:
       - server
 
