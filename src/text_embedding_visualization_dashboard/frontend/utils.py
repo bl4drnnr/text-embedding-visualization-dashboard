@@ -22,10 +22,11 @@ def create_embeddings(embeddings_instance: Embeddings, uploaded_file, label_colu
     uploaded_file : file object
         CSV file uploaded by the user. Must contain:
         - a 'text' column with the text data
-        - a column specified by label_column containing the labels
-        - optionally an 'id' column for custom document IDs
+        - a column specified by label_column containing the labels (if not named 'label')
+        - optionally an 'id' column for custom document IDs (if not present, will be auto-generated)
     label_column : str
-        Name of the column containing the labels. Defaults to "label".
+        Name of the column containing the labels. Defaults to "label". If provided, this name will be used
+        as the key in the metadata dictionary.
 
     Returns:
     str or None
@@ -46,9 +47,12 @@ def create_embeddings(embeddings_instance: Embeddings, uploaded_file, label_colu
     texts = df["text"].tolist()
     collection_name = uploaded_file.name[:-4]
     
-    ids = df["id"].tolist() if "id" in df.columns else None
+    if "id" not in df.columns:
+        ids = [f"doc_{i}" for i in range(len(texts))]
+    else:
+        ids = df["id"].tolist()
     
-    metadatas = [{"label": label} for label in labels]
+    metadatas = [{label_column: label} for label in labels]
     
     embeddings_instance.batch_process_texts(
         texts=texts,
@@ -82,7 +86,11 @@ def get_embeddings(db: VectorDB, dataset_name: str) -> Tuple[np.ndarray, list[st
 
     metadatas = db_collection["metadatas"]
     
-    labels = [matadata.get("label") for matadata in metadatas]
+    if metadatas and len(metadatas) > 0:
+        label_key = next(iter(metadatas[0].keys()))
+        labels = [metadata.get(label_key) for metadata in metadatas]
+    else:
+        labels = []
 
     return embeddings, labels
 
