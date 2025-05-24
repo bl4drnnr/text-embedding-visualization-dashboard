@@ -49,20 +49,16 @@ def create_embeddings(embeddings_instance: Embeddings, uploaded_file, label_colu
     labels = df[label_column].fillna("unknown").astype(str).tolist()
     texts = df["text"].tolist()
     collection_name = uploaded_file.name[:-4]
-    
+
     if "id" not in df.columns:
         ids = [f"doc_{i}" for i in range(len(texts))]
     else:
         ids = df["id"].tolist()
-    
+
     metadatas = [{label_column: label} for label in labels]
-    
+
     embeddings_instance.batch_process_texts(
-        texts=texts,
-        collection_name=collection_name,
-        metadatas=metadatas,
-        ids=ids,
-        batch_size=5000
+        texts=texts, collection_name=collection_name, metadatas=metadatas, ids=ids, batch_size=5000
     )
 
     return collection_name
@@ -88,7 +84,7 @@ def get_embeddings(db: VectorDB, dataset_name: str) -> Tuple[np.ndarray, list[st
     embeddings = np.array(db_collection["embeddings"])
 
     metadatas = db_collection["metadatas"]
-    
+
     if metadatas and len(metadatas) > 0:
         label_key = next(iter(metadatas[0].keys()))
         labels = [metadata.get(label_key) for metadata in metadatas]
@@ -153,9 +149,7 @@ def apply_dimensionality_reduction(embeddings: np.ndarray, method: str, params: 
             status_text.text("Initializing PaCMAP...")
             progress_bar.progress(10)
             reducer = pacmap.PaCMAP(
-                n_neighbors=params["n_neighbors"], 
-                n_components=params["n_components"], 
-                random_state=random_state
+                n_neighbors=params["n_neighbors"], n_components=params["n_components"], random_state=random_state
             )
             status_text.text("Computing PaCMAP projection...")
             progress_bar.progress(30)
@@ -179,25 +173,23 @@ def apply_dimensionality_reduction(embeddings: np.ndarray, method: str, params: 
         return reduced
 
     finally:
+
         def cleanup():
             import time
+
             time.sleep(1)
             progress_bar.empty()
             status_text.empty()
-        
+
         cleanup()
 
 
 def save_reduction_results(
-    reduced_embeddings: np.ndarray,
-    labels: list[str],
-    method: str,
-    params: dict,
-    filename: str
+    reduced_embeddings: np.ndarray, labels: list[str], method: str, params: dict, filename: str
 ) -> None:
     """
     Save dimensionality reduction results to a file.
-    
+
     Parameters:
     reduced_embeddings : np.ndarray
         The reduced embeddings (e.g., UMAP output)
@@ -212,17 +204,12 @@ def save_reduction_results(
     """
     save_dir = Path("saved_reductions")
     save_dir.mkdir(exist_ok=True)
-    
-    data = {
-        "reduced_embeddings": reduced_embeddings,
-        "labels": labels,
-        "method": method,
-        "params": params
-    }
-    
+
+    data = {"reduced_embeddings": reduced_embeddings, "labels": labels, "method": method, "params": params}
+
     with open(save_dir / f"{filename}.pkl", "wb") as f:
         pickle.dump(data, f)
-    
+
     with open(save_dir / f"{filename}_params.json", "w") as f:
         json.dump({"method": method, "params": params}, f, indent=2)
 
@@ -230,11 +217,11 @@ def save_reduction_results(
 def load_reduction_results(filename: str) -> tuple[np.ndarray, list[str], str, dict]:
     """
     Load saved dimensionality reduction results.
-    
+
     Parameters:
     filename : str
         The name of the file to load (without extension)
-        
+
     Returns:
     tuple
         (reduced_embeddings, labels, method, params)
@@ -242,10 +229,5 @@ def load_reduction_results(filename: str) -> tuple[np.ndarray, list[str], str, d
     save_dir = Path("saved_reductions")
     with open(save_dir / f"{filename}.pkl", "rb") as f:
         data = pickle.load(f)
-    
-    return (
-        data["reduced_embeddings"],
-        data["labels"],
-        data["method"],
-        data["params"]
-    )
+
+    return (data["reduced_embeddings"], data["labels"], data["method"], data["params"])

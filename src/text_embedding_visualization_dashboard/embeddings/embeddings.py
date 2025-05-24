@@ -14,12 +14,12 @@ class Embeddings:
         return self.model.encode(text).tolist()
 
     def batch_process_texts(
-        self, 
-        texts: List[str], 
-        collection_name: str, 
-        metadatas: Optional[List[dict]] = None, 
+        self,
+        texts: List[str],
+        collection_name: str,
+        metadatas: Optional[List[dict]] = None,
         ids: Optional[List[str]] = None,
-        batch_size: int = 128
+        batch_size: int = 128,
     ):
         """
         Batch process texts to generate embeddings and store them in ChromaDB.
@@ -39,17 +39,17 @@ class Embeddings:
         num_batches = (len(texts) + batch_size - 1) // batch_size
         progress_bar = st.progress(0)
         status_text = st.empty()
-        
+
         try:
             status_text.text("Initializing embedding generation...")
             progress_bar.progress(5)
-            
+
             for i, batch_start in enumerate(range(0, len(texts), batch_size)):
                 batch_texts = texts[batch_start : batch_start + batch_size]
                 batch_metadatas = metadatas[batch_start : batch_start + batch_size] if metadatas else None
                 batch_ids = ids[batch_start : batch_start + batch_size] if ids else None
 
-                status_text.text(f"Processing batch {i+1}/{num_batches}...")
+                status_text.text(f"Processing batch {i + 1}/{num_batches}...")
                 embeddings = self.generate_embedding(batch_texts)
 
                 if batch_metadatas is None:
@@ -62,20 +62,22 @@ class Embeddings:
                     ids=batch_ids,
                     metadata=batch_metadatas,
                 )
-                
+
                 progress = min(95, int((i + 1) / num_batches * 100))
                 progress_bar.progress(progress)
-            
+
             status_text.text("Embedding generation completed!")
             progress_bar.progress(100)
-            
+
         finally:
+
             def cleanup():
                 import time
+
                 time.sleep(1)
                 progress_bar.empty()
                 status_text.empty()
-            
+
             cleanup()
 
     def query_similar_texts(self, query_text: str, collection_name: str, top_k: int = 5):
