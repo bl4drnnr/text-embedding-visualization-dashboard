@@ -49,6 +49,7 @@ def plot_reduced_embeddings(
             opacity=0.7,
             height=600,
             width=800,
+            color_discrete_sequence=px.colors.qualitative.Alphabet,
         )
     elif type == "3D":
         fig = px.scatter_3d(
@@ -62,6 +63,7 @@ def plot_reduced_embeddings(
             opacity=0.7,
             height=600,
             width=800,
+            color_discrete_sequence=px.colors.qualitative.Alphabet,
         )
 
     fig.update_layout(
