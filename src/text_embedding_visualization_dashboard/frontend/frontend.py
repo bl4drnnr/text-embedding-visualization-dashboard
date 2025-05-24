@@ -7,9 +7,30 @@ from text_embedding_visualization_dashboard.frontend.utils import (
 )
 from text_embedding_visualization_dashboard.frontend.visualizations import plot_reduced_embeddings
 from text_embedding_visualization_dashboard.vector_db import VectorDB
+from text_embedding_visualization_dashboard.embeddings import Embeddings
+from text_embedding_visualization_dashboard.vector_db.reduced_embeddings_db import ReducedEmbeddingsDB
 
+if "is_processing" not in st.session_state:
+    st.session_state.is_processing = False
+
+AVAILABLE_MODELS = {
+    "all-mpnet-base-v2": {"speed": 2800, "size": "420 MB"},
+    "multi-qa-mpnet-base-dot-v1": {"speed": 2800, "size": "420 MB"},
+    "all-distilroberta-v1": {"speed": 4000, "size": "290 MB"},
+    "all-MiniLM-L12-v2": {"speed": 7500, "size": "120 MB"},
+    "multi-qa-distilbert-cos-v1": {"speed": 4000, "size": "250 MB"},
+    "all-MiniLM-L6-v2": {"speed": 14200, "size": "80 MB"},
+    "multi-qa-MiniLM-L6-cos-v1": {"speed": 14200, "size": "80 MB"},
+    "paraphrase-multilingual-mpnet-base-v2": {"speed": 2500, "size": "970 MB"},
+    "paraphrase-albert-small-v2": {"speed": 5000, "size": "43 MB"},
+    "paraphrase-multilingual-MiniLM-L12-v2": {"speed": 7500, "size": "420 MB"},
+    "paraphrase-MiniLM-L3-v2": {"speed": 19000, "size": "61 MB"},
+    "distiluse-base-multilingual-cased-v1": {"speed": 4000, "size": "480 MB"},
+    "distiluse-base-multilingual-cased-v2": {"speed": 4000, "size": "480 MB"},
+}
 
 db = VectorDB()
+reduced_embeddings_db = ReducedEmbeddingsDB(db)
 
 st.set_page_config(page_title="Text Embedding Visualization Dashboard", page_icon="📊", layout="wide")
 
@@ -25,23 +46,59 @@ This application allows you to visualize text embeddings using different dimensi
 
 st.sidebar.header("Settings")
 
-dataset_option = st.selectbox("Choose a data source", ["Upload your own data", "Existing dataset"])
+model_option = st.sidebar.selectbox(
+    "Choose an embedding model",
+    options=list(AVAILABLE_MODELS.keys()),
+    index=list(AVAILABLE_MODELS.keys()).index("all-MiniLM-L6-v2"),
+    help="Select the model to use for generating embeddings. Speed indicates sentences per second, size indicates model size.",
+    disabled=st.session_state.is_processing
+)
+
+model_specs = AVAILABLE_MODELS[model_option]
+st.sidebar.markdown(f"""
+**Model Specifications:**
+- Speed: {model_specs['speed']} sentences/sec
+- Size: {model_specs['size']}
+""")
+
+if "current_model" not in st.session_state:
+    st.session_state.current_model = model_option
+    st.session_state.embeddings_instance = Embeddings(db, model_name=model_option)
+    st.session_state.is_processing = False
+elif st.session_state.current_model != model_option:
+    st.session_state.current_model = model_option
+    st.session_state.embeddings_instance = Embeddings(db, model_name=model_option)
+
+dataset_option = st.selectbox(
+    "Choose a data source", 
+    ["Upload your own data", "Existing dataset"],
+    disabled=st.session_state.is_processing
+)
 
 uploaded_file = None
 dataset_name = None
 if dataset_option == "Upload your own data":
-    uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
+    uploaded_file = st.file_uploader(
+        "Upload CSV file", 
+        type=["csv"],
+        disabled=st.session_state.is_processing
+    )
     if uploaded_file is not None:
-        dataset_name = create_embeddings(db, uploaded_file)
+        dataset_name = create_embeddings(st.session_state.embeddings_instance, uploaded_file)
 
 
 if dataset_option == "Existing dataset":
-    collections = [col.name for col in db.get_all_collections()]
-    dataset_name = st.selectbox("Choose a dataset", collections)
+    collections = [col.name for col in db.get_all_collections() if col.name != "reduced_embeddings"]
+    dataset_name = st.selectbox(
+        "Choose a dataset", 
+        collections,
+        disabled=st.session_state.is_processing
+    )
 
 dimensionality_reduction_option = st.sidebar.selectbox(
     "Choose a dimensionality reduction technique",
     ["t-SNE", "UMAP", "PaCMAP", "TriMAP"],
+    disabled=st.session_state.is_processing
 )
 
 
@@ -52,6 +109,9 @@ if "dr_params" not in st.session_state:
         "PaCMAP": {"n_neighbors": 5},
         "TriMAP": {"n_neighbors": 5},
     }
+
+if "reduced_embeddings" not in st.session_state:
+    st.session_state.reduced_embeddings = None
 
 embeddings, labels = None, None
 if dataset_name:
@@ -66,30 +126,54 @@ if labels is not None:
 dr_params = st.session_state.dr_params
 dataset_size = st.session_state.dataset_size
 
-# Dimensionality reduction settings
 if dataset_size is not None:
     if dimensionality_reduction_option == "t-SNE":
         dr_params["t-SNE"] = {
             "perplexity": st.sidebar.slider(
-                "perplexity", 5, min(50, dataset_size - 1), dr_params["t-SNE"]["perplexity"]
+                "perplexity", 
+                5, 
+                min(50, dataset_size - 1), 
+                dr_params["t-SNE"]["perplexity"],
+                disabled=st.session_state.is_processing
             ),
-            "max_iter": st.sidebar.slider("iterations", 250, 1000, dr_params["t-SNE"]["max_iter"]),
+            "max_iter": st.sidebar.slider(
+                "iterations", 
+                250, 
+                1000, 
+                dr_params["t-SNE"]["max_iter"],
+                disabled=st.session_state.is_processing
+            ),
             "n_components": 3,
         }
 
     if dimensionality_reduction_option == "UMAP":
         dr_params["UMAP"] = {
             "n_neighbors": st.sidebar.slider(
-                "n_neighbors", 5, min(100, dataset_size - 1), dr_params["UMAP"]["n_neighbors"]
+                "n_neighbors", 
+                5, 
+                min(100, dataset_size - 1), 
+                dr_params["UMAP"]["n_neighbors"],
+                disabled=st.session_state.is_processing
             ),
-            "min_dist": st.sidebar.slider("min_dist", 0.01, 0.99, dr_params["UMAP"]["min_dist"], step=0.01),
+            "min_dist": st.sidebar.slider(
+                "min_dist", 
+                0.01, 
+                0.99, 
+                dr_params["UMAP"]["min_dist"], 
+                step=0.01,
+                disabled=st.session_state.is_processing
+            ),
             "n_components": 3,
         }
 
     if dimensionality_reduction_option == "PaCMAP":
         dr_params["PaCMAP"] = {
             "n_neighbors": st.sidebar.slider(
-                "n_neighbors", 5, min(50, dataset_size - 1), dr_params["PaCMAP"]["n_neighbors"]
+                "n_neighbors", 
+                5, 
+                min(50, dataset_size - 1), 
+                dr_params["PaCMAP"]["n_neighbors"],
+                disabled=st.session_state.is_processing
             ),
             "n_components": 3,
         }
@@ -97,24 +181,49 @@ if dataset_size is not None:
     if dimensionality_reduction_option == "TriMAP":
         dr_params["TriMAP"] = {
             "n_neighbors": st.sidebar.slider(
-                "n_neighbors", 5, min(50, dataset_size - 1), dr_params["TriMAP"]["n_neighbors"]
+                "n_neighbors", 
+                5, 
+                min(50, dataset_size - 1), 
+                dr_params["TriMAP"]["n_neighbors"],
+                disabled=st.session_state.is_processing
             ),
             "n_components": 3,
         }
 
-# Visualizations
-if embeddings is not None:
+    if st.sidebar.button("Run Dimensionality Reduction", disabled=st.session_state.is_processing):
+        st.session_state.is_processing = True
+        try:
+            with st.spinner(f"Computing {dimensionality_reduction_option} projection..."):
+                cached_embeddings = reduced_embeddings_db.get_reduced_embeddings(
+                    dataset_name=dataset_name,
+                    method=dimensionality_reduction_option,
+                    params=dr_params[dimensionality_reduction_option]
+                )
+                
+                if cached_embeddings is not None:
+                    st.sidebar.success("Using cached results!")
+                    st.session_state.reduced_embeddings = cached_embeddings
+                else:
+                    st.session_state.reduced_embeddings = apply_dimensionality_reduction(
+                        embeddings, dimensionality_reduction_option, dr_params[dimensionality_reduction_option]
+                    )
+                    reduced_embeddings_db.store_reduced_embeddings(
+                        dataset_name=dataset_name,
+                        method=dimensionality_reduction_option,
+                        params=dr_params[dimensionality_reduction_option],
+                        reduced_embeddings=st.session_state.reduced_embeddings
+                    )
+        finally:
+            st.session_state.is_processing = False
+            st.rerun()
+
+if embeddings is not None and st.session_state.reduced_embeddings is not None:
     tab2D, tab3D = st.tabs(["2D", "3D"])
 
-    with st.spinner(f"Computing {dimensionality_reduction_option} projection..."):
-        embeddings_reduced = apply_dimensionality_reduction(
-            embeddings, dimensionality_reduction_option, dr_params[dimensionality_reduction_option]
-        )
+    with tab2D:
+        fig = plot_reduced_embeddings(st.session_state.reduced_embeddings, labels, dimensionality_reduction_option, type="2D")
+        st.plotly_chart(fig, use_container_width=True, key="2D")
 
-        with tab2D:
-            fig = plot_reduced_embeddings(embeddings_reduced, labels, dimensionality_reduction_option, type="2D")
-            st.plotly_chart(fig, use_container_width=True, key="2D")
-
-        with tab3D:
-            fig3D = plot_reduced_embeddings(embeddings_reduced, labels, dimensionality_reduction_option, type="3D")
-            st.plotly_chart(fig3D, use_container_width=True, key="3D")
+    with tab3D:
+        fig3D = plot_reduced_embeddings(st.session_state.reduced_embeddings, labels, dimensionality_reduction_option, type="3D")
+        st.plotly_chart(fig3D, use_container_width=True, key="3D")

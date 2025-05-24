@@ -1,7 +1,8 @@
 from tqdm import tqdm
 from typing import List, Optional
 from sentence_transformers import SentenceTransformer
-from src.text_embedding_visualization_dashboard.vector_db.db import VectorDB
+import streamlit as st
+from text_embedding_visualization_dashboard.vector_db.db import VectorDB
 
 
 class Embeddings:
@@ -31,24 +32,48 @@ class Embeddings:
         self.vector_db.add_collection(name=collection_name)
 
         num_batches = (len(texts) + batch_size - 1) // batch_size
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        try:
+            status_text.text("Initializing embedding generation...")
+            progress_bar.progress(5)
+            
+            for i, batch_start in enumerate(range(0, len(texts), batch_size)):
+                batch_texts = texts[batch_start : batch_start + batch_size]
+                batch_metadatas = metadatas[batch_start : batch_start + batch_size] if metadatas else None
 
-        for i in tqdm(range(0, len(texts), batch_size), desc="Processing batches", total=num_batches):
-            batch_texts = texts[i : i + batch_size]
-            batch_metadatas = metadatas[i : i + batch_size] if metadatas else None
+                status_text.text(f"Processing batch {i+1}/{num_batches}...")
+                embeddings = self.generate_embedding(batch_texts)
+                ids = [f"doc_{j}" for j in range(batch_start, batch_start + len(batch_texts))]
 
-            embeddings = self.generate_embedding(batch_texts)
-            ids = [f"doc_{j}" for j in range(i, i + len(batch_texts))]
+                if batch_metadatas is None:
+                    batch_metadatas = [{"source": "batch_process"} for _ in batch_texts]
 
-            if batch_metadatas is None:
-                batch_metadatas = [{"source": "batch_process"} for _ in batch_texts]
-
-            self.vector_db.add_items_to_collection(
-                name=collection_name,
-                texts=batch_texts,
-                embeddings=embeddings,
-                ids=ids,
-                metadata=batch_metadatas,
-            )
+                self.vector_db.add_items_to_collection(
+                    name=collection_name,
+                    texts=batch_texts,
+                    embeddings=embeddings,
+                    ids=ids,
+                    metadata=batch_metadatas,
+                )
+                
+                # Update progress
+                progress = min(95, int((i + 1) / num_batches * 100))
+                progress_bar.progress(progress)
+            
+            status_text.text("Embedding generation completed!")
+            progress_bar.progress(100)
+            
+        finally:
+            # Clean up the progress bar and status text after a short delay
+            def cleanup():
+                import time
+                time.sleep(1)  # Show the completion message briefly
+                progress_bar.empty()
+                status_text.empty()
+            
+            cleanup()
 
     def query_similar_texts(self, query_text: str, collection_name: str, top_k: int = 5):
         """

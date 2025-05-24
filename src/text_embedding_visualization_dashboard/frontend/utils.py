@@ -6,21 +6,24 @@ import umap
 import trimap
 import pacmap
 from sklearn.manifold import TSNE
-from sentence_transformers import SentenceTransformer
 import numpy as np
 
 from text_embedding_visualization_dashboard.vector_db import VectorDB
+from text_embedding_visualization_dashboard.embeddings import Embeddings
 
 
-def create_embeddings(db: VectorDB, uploaded_file) -> str | None:
+def create_embeddings(embeddings_instance: Embeddings, uploaded_file) -> str | None:
     """
     Creates embeddings from uploaded CSV file and adds them to the vector database.
 
     Parameters:
-    db : VectorDB
-        The vector database instance for storing embeddings.
+    embeddings_instance : Embeddings
+        The embeddings instance to use for generating embeddings.
     uploaded_file : file object
-        CSV file uploaded by the user. Must contain 'text' and 'label' columns.
+        CSV file uploaded by the user. Must contain 'text' column and either:
+        - a 'label' column for single-label data
+        - a 'labels' column for multi-label data
+        - multiple emotion columns (like in GoEmotions dataset)
 
     Returns:
     str or None
@@ -33,29 +36,43 @@ def create_embeddings(db: VectorDB, uploaded_file) -> str | None:
         st.error("The CSV file must contain a 'text' column.")
         return None
 
-    if "label" not in df.columns:
-        st.error("The CSV file must contain a 'label' column.")
-        return None
+    if "label" in df.columns:
+        labels = df["label"].tolist()
+    elif "labels" in df.columns:
+        labels = [str(label) for label in df["labels"]]
+    else:
+        # Super topornie, ale działa
+        metadata_columns = {'text', 'id', 'author', 'subreddit', 'link_id', 'parent_id', 'created_utc', 'rater_id', 'example_very_unclear'}
+        emotion_columns = [col for col in df.columns if col not in metadata_columns]
+        
+        if not emotion_columns:
+            st.error("No emotion columns found in the dataset.")
+            return None
+            
+        labels = []
+        for _, row in df.iterrows():
+            emotions = [col for col in emotion_columns if row[col] == 1]
+            if emotions:
+                labels.append(", ".join(emotions))
+            else:
+                labels.append("neutral")
 
     texts = df["text"].tolist()
-    labels = df["label"].tolist()
-
     collection_name = uploaded_file.name[:-4]
-    db.add_collection(collection_name)
-
-    # TODO:
-    # Just an example remove later
-    ids = [f"doc_{i}" for i in range(len(texts))]
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    embeddings = model.encode(texts).tolist()
+    
     metadatas = [{"label": label} for label in labels]
-
-    db.add_items_to_collection(collection_name, texts, embeddings, ids, metadatas)
+    
+    embeddings_instance.batch_process_texts(
+        texts=texts,
+        collection_name=collection_name,
+        metadatas=metadatas,
+        batch_size=1000
+    )
 
     return collection_name
 
 
-def get_embeddings(db: VectorDB, dataset_name: str) -> Tuple[list[list[float]], list[str]]:
+def get_embeddings(db: VectorDB, dataset_name: str) -> Tuple[np.ndarray, list[str]]:
     """
     Returns embeddings and corresponding labels from the database.
 
@@ -67,15 +84,14 @@ def get_embeddings(db: VectorDB, dataset_name: str) -> Tuple[list[list[float]], 
 
     Returns:
     tuple
-        (embeddings, labels): The retrieved embeddings and corresponding labels.
+        (embeddings, labels): The retrieved embeddings as numpy array and corresponding labels.
     """
 
     db_collection = db.get_all_items_from_collection(dataset_name, include=["embeddings", "metadatas"])
 
-    embeddings = db_collection["embeddings"]
+    embeddings = np.array(db_collection["embeddings"])
 
     metadatas = db_collection["metadatas"]
-
     labels = [matadata.get("label") for matadata in metadatas]
 
     return embeddings, labels
@@ -100,36 +116,72 @@ def apply_dimensionality_reduction(embeddings: np.ndarray, method: str, params: 
     """
 
     random_state = 42
+    progress_bar = st.progress(0)
+    status_text = st.empty()
 
-    if method == "UMAP":
-        reducer = umap.UMAP(
-            n_neighbors=params["n_neighbors"],
-            min_dist=params["min_dist"],
-            n_components=params["n_components"],
-            random_state=random_state,
-        )
-        reduced = reducer.fit_transform(embeddings)
+    try:
+        if method == "UMAP":
+            status_text.text("Initializing UMAP...")
+            progress_bar.progress(10)
+            reducer = umap.UMAP(
+                n_neighbors=params["n_neighbors"],
+                min_dist=params["min_dist"],
+                n_components=params["n_components"],
+                random_state=random_state,
+            )
+            status_text.text("Computing UMAP projection...")
+            progress_bar.progress(30)
+            reduced = reducer.fit_transform(embeddings)
+            progress_bar.progress(100)
 
-    elif method == "t-SNE":
-        reducer = TSNE(
-            n_components=params["n_components"],
-            perplexity=params["perplexity"],
-            max_iter=params["max_iter"],
-            random_state=random_state,
-        )
-        reduced = reducer.fit_transform(embeddings)
+        elif method == "t-SNE":
+            status_text.text("Initializing t-SNE...")
+            progress_bar.progress(10)
+            reducer = TSNE(
+                n_components=params["n_components"],
+                perplexity=params["perplexity"],
+                max_iter=params["max_iter"],
+                random_state=random_state,
+            )
+            status_text.text("Computing t-SNE projection (this may take a while)...")
+            progress_bar.progress(30)
+            reduced = reducer.fit_transform(embeddings)
+            progress_bar.progress(100)
 
-    elif method == "PaCMAP":
-        reducer = pacmap.PaCMAP(
-            n_neighbors=params["n_neighbors"], n_components=params["n_components"], random_state=random_state
-        )
-        reduced = reducer.fit_transform(embeddings)
+        elif method == "PaCMAP":
+            status_text.text("Initializing PaCMAP...")
+            progress_bar.progress(10)
+            reducer = pacmap.PaCMAP(
+                n_neighbors=params["n_neighbors"], 
+                n_components=params["n_components"], 
+                random_state=random_state
+            )
+            status_text.text("Computing PaCMAP projection...")
+            progress_bar.progress(30)
+            reduced = reducer.fit_transform(embeddings)
+            progress_bar.progress(100)
 
-    elif method == "TriMAP":
-        reducer = trimap.TRIMAP(n_dims=params["n_components"], n_inliers=params["n_neighbors"])
-        reduced = reducer.fit_transform(embeddings)
+        elif method == "TriMAP":
+            status_text.text("Initializing TriMAP...")
+            progress_bar.progress(10)
+            reducer = trimap.TRIMAP(n_dims=params["n_components"], n_inliers=params["n_neighbors"])
+            status_text.text("Computing TriMAP projection...")
+            progress_bar.progress(30)
+            reduced = reducer.fit_transform(embeddings)
+            progress_bar.progress(100)
 
-    else:
-        st.error(f"Unsupported dimensionality reduction method: {method}")
+        else:
+            st.error(f"Unsupported dimensionality reduction method: {method}")
+            return None
 
-    return reduced
+        status_text.text("Dimensionality reduction completed!")
+        return reduced
+
+    finally:
+        def cleanup():
+            import time
+            time.sleep(1)
+            progress_bar.empty()
+            status_text.empty()
+        
+        cleanup()
