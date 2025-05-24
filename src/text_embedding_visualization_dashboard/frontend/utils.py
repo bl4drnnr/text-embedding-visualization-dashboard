@@ -23,6 +23,7 @@ def create_embeddings(embeddings_instance: Embeddings, uploaded_file, label_colu
         CSV file uploaded by the user. Must contain:
         - a 'text' column with the text data
         - a column specified by label_column containing the labels
+        - optionally an 'id' column for custom document IDs
     label_column : str
         Name of the column containing the labels. Defaults to "label".
 
@@ -45,12 +46,15 @@ def create_embeddings(embeddings_instance: Embeddings, uploaded_file, label_colu
     texts = df["text"].tolist()
     collection_name = uploaded_file.name[:-4]
     
+    ids = df["id"].tolist() if "id" in df.columns else None
+    
     metadatas = [{"label": label} for label in labels]
     
     embeddings_instance.batch_process_texts(
         texts=texts,
         collection_name=collection_name,
         metadatas=metadatas,
+        ids=ids,
         batch_size=5000
     )
 

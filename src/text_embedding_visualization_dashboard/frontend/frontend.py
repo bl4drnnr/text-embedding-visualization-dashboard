@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 from text_embedding_visualization_dashboard.frontend.utils import (
     apply_dimensionality_reduction,
@@ -134,6 +135,9 @@ if "current_reduction" not in st.session_state:
 embeddings, labels = None, None
 if dataset_name:
     embeddings, labels = get_embeddings(db, dataset_name)
+    
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Compute Reduction")
 
 if "dataset_size" not in st.session_state:
     st.session_state.dataset_size = None
@@ -217,7 +221,6 @@ if dataset_size is not None:
                 )
         finally:
             st.session_state.is_processing = False
-            st.rerun()
 
 if embeddings is not None and st.session_state.current_reduction is not None:
     tab2D, tab3D = st.tabs(["2D", "3D"])

@@ -33,21 +33,29 @@ class VectorDB:
         logger.info(f"Getting collection {name}")
         return self.client.get_collection(name)
 
-    def add_collection(self, name: str, distance: Literal["cosine", "l2", "ip"] = "cosine") -> None:
+    def add_collection(
+        self, 
+        name: str, 
+        distance: Literal["cosine", "l2", "ip"] = "cosine",
+        metadata: dict | None = None
+    ) -> None:
         """
         Adds a collection to the ChromaDb
         :param name: name of the collection
         :param distance: Metric for calculating the distance between two vectors: cosine | L2 | inner product
+        :param metadata: Optional metadata to store with the collection
         :return:
         """
         if name not in [elem.name for elem in self.get_all_collections()]:
+            collection_metadata = metadata or {"created": str(datetime.now())}
+            if "created" not in collection_metadata:
+                collection_metadata["created"] = str(datetime.now())
+                
             self.client.create_collection(
                 name=name,
-                metadata={"created": str(datetime.now())},
+                metadata=collection_metadata,
                 configuration={
                     "hnsw": {"space": distance},
-                    # TODO: Replace it with our embedding function
-                    # "embedding_function": cohere_ef
                 },
             )
             logger.info(f"Created collection {name}")
@@ -63,7 +71,6 @@ class VectorDB:
         logger.info(f"Deleting collection {name}")
         if name not in [elem.name for elem in self.get_all_collections()]:
             logger.error(f"Collection {name} does not exist.")
-
         else:
             self.client.delete_collection(name)
 
@@ -120,14 +127,11 @@ class VectorDB:
 
         :return:"""
         collection = self.get_collection(name)
-        # TODO: Here we should use our own function for embedding, or pass that function to chroma client during creation of collection:
-        # https://cookbook.chromadb.dev/embeddings/bring-your-own-embeddings/
         results = collection.query(
-            query_embeddings=query_embeddings,  # Chroma will embed this for you
-            n_results=n_results,  # how many results to return,
+            query_embeddings=query_embeddings,
+            n_results=n_results,
             include=include,
         )
-
         return results
 
     def query_collection_by_metadata(

@@ -14,7 +14,12 @@ class Embeddings:
         return self.model.encode(text).tolist()
 
     def batch_process_texts(
-        self, texts: List[str], collection_name: str, metadatas: Optional[List[dict]] = None, batch_size: int = 128
+        self, 
+        texts: List[str], 
+        collection_name: str, 
+        metadatas: Optional[List[dict]] = None, 
+        ids: Optional[List[str]] = None,
+        batch_size: int = 128
     ):
         """
         Batch process texts to generate embeddings and store them in ChromaDB.
@@ -22,6 +27,7 @@ class Embeddings:
         :param texts: List of texts to embed.
         :param collection_name: Name of the collection in ChromaDB.
         :param metadatas: Optional list of metadata dicts for each text.
+        :param ids: Optional list of custom IDs for each text.
         :param batch_size: Number of samples per batch.
         """
         texts = [text for text in texts if text and text.strip()]
@@ -41,10 +47,10 @@ class Embeddings:
             for i, batch_start in enumerate(range(0, len(texts), batch_size)):
                 batch_texts = texts[batch_start : batch_start + batch_size]
                 batch_metadatas = metadatas[batch_start : batch_start + batch_size] if metadatas else None
+                batch_ids = ids[batch_start : batch_start + batch_size] if ids else None
 
                 status_text.text(f"Processing batch {i+1}/{num_batches}...")
                 embeddings = self.generate_embedding(batch_texts)
-                ids = [f"doc_{j}" for j in range(batch_start, batch_start + len(batch_texts))]
 
                 if batch_metadatas is None:
                     batch_metadatas = [{"source": "batch_process"} for _ in batch_texts]
@@ -53,7 +59,7 @@ class Embeddings:
                     name=collection_name,
                     texts=batch_texts,
                     embeddings=embeddings,
-                    ids=ids,
+                    ids=batch_ids,
                     metadata=batch_metadatas,
                 )
                 
