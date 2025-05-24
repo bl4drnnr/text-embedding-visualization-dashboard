@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 
 from text_embedding_visualization_dashboard.frontend.utils import (
     apply_dimensionality_reduction,
     get_embeddings,
     create_embeddings,
+    save_reduction_results,
 )
 from text_embedding_visualization_dashboard.frontend.visualizations import plot_reduced_embeddings
 from text_embedding_visualization_dashboard.vector_db import VectorDB
@@ -32,7 +32,20 @@ AVAILABLE_MODELS = {
 
 db = VectorDB()
 
-st.set_page_config(page_title="Text Embedding Visualization Dashboard", page_icon="📊", layout="wide")
+st.set_page_config(
+    page_title="Text Embedding Visualization Dashboard",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+st.markdown("""
+<style>
+    [data-testid="stSidebar"] [data-testid="stSidebarNav"] {
+        display: none;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 st.title("Text Embedding Visualization Dashboard")
 st.markdown("""
@@ -43,7 +56,30 @@ This application allows you to visualize text embeddings using different dimensi
 - TriMAP (Triple Manifold Approximation and Projection)
 """)
 
+st.sidebar.header("Navigation")
+st.sidebar.markdown("""
+<div style='text-align: center; margin-bottom: 20px;'>
+    <a href='/saved_reductions' target='_self' style='text-decoration: none;'>
+        <button style='
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+        '>
+            📚 View Saved Reductions
+        </button>
+    </a>
+</div>
+""", unsafe_allow_html=True)
 
+st.sidebar.markdown("---")
 st.sidebar.header("Settings")
 
 model_option = st.sidebar.selectbox(
@@ -223,6 +259,27 @@ if dataset_size is not None:
             st.session_state.is_processing = False
 
 if embeddings is not None and st.session_state.current_reduction is not None:
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Save Current Reduction")
+    
+    save_name = st.sidebar.text_input(
+        "Save reduction as",
+        help="Enter a name to save the current reduction"
+    )
+    
+    if st.sidebar.button("Save Reduction") and save_name:
+        try:
+            save_reduction_results(
+                st.session_state.current_reduction,
+                labels,
+                dimensionality_reduction_option,
+                dr_params[dimensionality_reduction_option],
+                save_name
+            )
+            st.sidebar.success(f"Saved reduction as '{save_name}'")
+        except Exception as e:
+            st.sidebar.error(f"Error saving reduction: {str(e)}")
+
     tab2D, tab3D = st.tabs(["2D", "3D"])
 
     with tab2D:

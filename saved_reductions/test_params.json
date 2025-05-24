@@ -1,0 +1,8 @@
+{
+  "method": "UMAP",
+  "params": {
+    "n_neighbors": 5,
+    "min_dist": 0.1,
+    "n_components": 3
+  }
+}

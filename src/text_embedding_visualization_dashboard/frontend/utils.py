@@ -7,6 +7,9 @@ import trimap
 import pacmap
 from sklearn.manifold import TSNE
 import numpy as np
+import json
+from pathlib import Path
+import pickle
 
 from text_embedding_visualization_dashboard.vector_db import VectorDB
 from text_embedding_visualization_dashboard.embeddings import Embeddings
@@ -183,3 +186,66 @@ def apply_dimensionality_reduction(embeddings: np.ndarray, method: str, params: 
             status_text.empty()
         
         cleanup()
+
+
+def save_reduction_results(
+    reduced_embeddings: np.ndarray,
+    labels: list[str],
+    method: str,
+    params: dict,
+    filename: str
+) -> None:
+    """
+    Save dimensionality reduction results to a file.
+    
+    Parameters:
+    reduced_embeddings : np.ndarray
+        The reduced embeddings (e.g., UMAP output)
+    labels : list[str]
+        The labels for each point
+    method : str
+        The dimensionality reduction method used (e.g., "UMAP")
+    params : dict
+        The parameters used for the reduction
+    filename : str
+        The name of the file to save to (without extension)
+    """
+    save_dir = Path("saved_reductions")
+    save_dir.mkdir(exist_ok=True)
+    
+    data = {
+        "reduced_embeddings": reduced_embeddings,
+        "labels": labels,
+        "method": method,
+        "params": params
+    }
+    
+    with open(save_dir / f"{filename}.pkl", "wb") as f:
+        pickle.dump(data, f)
+    
+    with open(save_dir / f"{filename}_params.json", "w") as f:
+        json.dump({"method": method, "params": params}, f, indent=2)
+
+
+def load_reduction_results(filename: str) -> tuple[np.ndarray, list[str], str, dict]:
+    """
+    Load saved dimensionality reduction results.
+    
+    Parameters:
+    filename : str
+        The name of the file to load (without extension)
+        
+    Returns:
+    tuple
+        (reduced_embeddings, labels, method, params)
+    """
+    save_dir = Path("saved_reductions")
+    with open(save_dir / f"{filename}.pkl", "rb") as f:
+        data = pickle.load(f)
+    
+    return (
+        data["reduced_embeddings"],
+        data["labels"],
+        data["method"],
+        data["params"]
+    )
