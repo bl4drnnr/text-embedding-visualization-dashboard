@@ -1,4 +1,3 @@
-from tqdm import tqdm
 from typing import List, Optional
 from sentence_transformers import SentenceTransformer
 import streamlit as st
@@ -58,7 +57,6 @@ class Embeddings:
                     metadata=batch_metadatas,
                 )
                 
-                # Update progress
                 progress = min(95, int((i + 1) / num_batches * 100))
                 progress_bar.progress(progress)
             
@@ -66,10 +64,9 @@ class Embeddings:
             progress_bar.progress(100)
             
         finally:
-            # Clean up the progress bar and status text after a short delay
             def cleanup():
                 import time
-                time.sleep(1)  # Show the completion message briefly
+                time.sleep(1)
                 progress_bar.empty()
                 status_text.empty()
             

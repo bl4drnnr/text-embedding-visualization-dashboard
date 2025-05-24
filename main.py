@@ -15,7 +15,6 @@ def main():
     mode = args.mode
     query_text = args.query
     top_k = args.top_k
-
     vector_db = VectorDB()
     service = Embeddings(vector_db, model_name)
 

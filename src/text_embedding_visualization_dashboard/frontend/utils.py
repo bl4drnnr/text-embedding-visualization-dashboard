@@ -12,7 +12,7 @@ from text_embedding_visualization_dashboard.vector_db import VectorDB
 from text_embedding_visualization_dashboard.embeddings import Embeddings
 
 
-def create_embeddings(embeddings_instance: Embeddings, uploaded_file) -> str | None:
+def create_embeddings(embeddings_instance: Embeddings, uploaded_file, label_column: str = "label") -> str | None:
     """
     Creates embeddings from uploaded CSV file and adds them to the vector database.
 
@@ -20,10 +20,11 @@ def create_embeddings(embeddings_instance: Embeddings, uploaded_file) -> str | N
     embeddings_instance : Embeddings
         The embeddings instance to use for generating embeddings.
     uploaded_file : file object
-        CSV file uploaded by the user. Must contain 'text' column and either:
-        - a 'label' column for single-label data
-        - a 'labels' column for multi-label data
-        - multiple emotion columns (like in GoEmotions dataset)
+        CSV file uploaded by the user. Must contain:
+        - a 'text' column with the text data
+        - a column specified by label_column containing the labels
+    label_column : str
+        Name of the column containing the labels. Defaults to "label".
 
     Returns:
     str or None
@@ -36,27 +37,11 @@ def create_embeddings(embeddings_instance: Embeddings, uploaded_file) -> str | N
         st.error("The CSV file must contain a 'text' column.")
         return None
 
-    if "label" in df.columns:
-        labels = df["label"].tolist()
-    elif "labels" in df.columns:
-        labels = [str(label) for label in df["labels"]]
-    else:
-        # Super topornie, ale działa
-        metadata_columns = {'text', 'id', 'author', 'subreddit', 'link_id', 'parent_id', 'created_utc', 'rater_id', 'example_very_unclear'}
-        emotion_columns = [col for col in df.columns if col not in metadata_columns]
-        
-        if not emotion_columns:
-            st.error("No emotion columns found in the dataset.")
-            return None
-            
-        labels = []
-        for _, row in df.iterrows():
-            emotions = [col for col in emotion_columns if row[col] == 1]
-            if emotions:
-                labels.append(", ".join(emotions))
-            else:
-                labels.append("neutral")
+    if label_column not in df.columns:
+        st.error(f"The CSV file must contain a '{label_column}' column.")
+        return None
 
+    labels = df[label_column].fillna("unknown").astype(str).tolist()
     texts = df["text"].tolist()
     collection_name = uploaded_file.name[:-4]
     
@@ -66,7 +51,7 @@ def create_embeddings(embeddings_instance: Embeddings, uploaded_file) -> str | N
         texts=texts,
         collection_name=collection_name,
         metadatas=metadatas,
-        batch_size=1000
+        batch_size=5000
     )
 
     return collection_name
@@ -92,6 +77,7 @@ def get_embeddings(db: VectorDB, dataset_name: str) -> Tuple[np.ndarray, list[st
     embeddings = np.array(db_collection["embeddings"])
 
     metadatas = db_collection["metadatas"]
+    
     labels = [matadata.get("label") for matadata in metadatas]
 
     return embeddings, labels

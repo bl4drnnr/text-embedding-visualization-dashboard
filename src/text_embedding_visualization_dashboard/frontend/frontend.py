@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 from text_embedding_visualization_dashboard.frontend.utils import (
     apply_dimensionality_reduction,
@@ -8,7 +9,6 @@ from text_embedding_visualization_dashboard.frontend.utils import (
 from text_embedding_visualization_dashboard.frontend.visualizations import plot_reduced_embeddings
 from text_embedding_visualization_dashboard.vector_db import VectorDB
 from text_embedding_visualization_dashboard.embeddings import Embeddings
-from text_embedding_visualization_dashboard.vector_db.reduced_embeddings_db import ReducedEmbeddingsDB
 
 if "is_processing" not in st.session_state:
     st.session_state.is_processing = False
@@ -30,7 +30,6 @@ AVAILABLE_MODELS = {
 }
 
 db = VectorDB()
-reduced_embeddings_db = ReducedEmbeddingsDB(db)
 
 st.set_page_config(page_title="Text Embedding Visualization Dashboard", page_icon="📊", layout="wide")
 
@@ -84,11 +83,30 @@ if dataset_option == "Upload your own data":
         disabled=st.session_state.is_processing
     )
     if uploaded_file is not None:
-        dataset_name = create_embeddings(st.session_state.embeddings_instance, uploaded_file)
+        df = pd.read_csv(uploaded_file)
+        st.write("Available columns in your dataset:")
+        st.write(df.columns.tolist())
+        
+        uploaded_file.seek(0)
+        
+        label_column = st.text_input(
+            "Enter the name of your label column",
+            value="label",
+            help="Specify which column contains the labels for your texts. This column should contain categorical values that will be used to color the visualization."
+        )
+        
+        if st.button("Process Dataset", disabled=st.session_state.is_processing):
+            if label_column not in df.columns:
+                st.error(f"Column '{label_column}' not found in the dataset. Please check the column name and try again.")
+            else:
+                dataset_name = create_embeddings(st.session_state.embeddings_instance, uploaded_file, label_column)
+                st.success("Dataset processed successfully!")
+                st.experimental_set_query_params(dataset_option="Existing dataset")
+                st.rerun()
 
 
 if dataset_option == "Existing dataset":
-    collections = [col.name for col in db.get_all_collections() if col.name != "reduced_embeddings"]
+    collections = [col.name for col in db.get_all_collections()]
     dataset_name = st.selectbox(
         "Choose a dataset", 
         collections,
@@ -110,8 +128,8 @@ if "dr_params" not in st.session_state:
         "TriMAP": {"n_neighbors": 5},
     }
 
-if "reduced_embeddings" not in st.session_state:
-    st.session_state.reduced_embeddings = None
+if "current_reduction" not in st.session_state:
+    st.session_state.current_reduction = None
 
 embeddings, labels = None, None
 if dataset_name:
@@ -194,36 +212,20 @@ if dataset_size is not None:
         st.session_state.is_processing = True
         try:
             with st.spinner(f"Computing {dimensionality_reduction_option} projection..."):
-                cached_embeddings = reduced_embeddings_db.get_reduced_embeddings(
-                    dataset_name=dataset_name,
-                    method=dimensionality_reduction_option,
-                    params=dr_params[dimensionality_reduction_option]
+                st.session_state.current_reduction = apply_dimensionality_reduction(
+                    embeddings, dimensionality_reduction_option, dr_params[dimensionality_reduction_option]
                 )
-                
-                if cached_embeddings is not None:
-                    st.sidebar.success("Using cached results!")
-                    st.session_state.reduced_embeddings = cached_embeddings
-                else:
-                    st.session_state.reduced_embeddings = apply_dimensionality_reduction(
-                        embeddings, dimensionality_reduction_option, dr_params[dimensionality_reduction_option]
-                    )
-                    reduced_embeddings_db.store_reduced_embeddings(
-                        dataset_name=dataset_name,
-                        method=dimensionality_reduction_option,
-                        params=dr_params[dimensionality_reduction_option],
-                        reduced_embeddings=st.session_state.reduced_embeddings
-                    )
         finally:
             st.session_state.is_processing = False
             st.rerun()
 
-if embeddings is not None and st.session_state.reduced_embeddings is not None:
+if embeddings is not None and st.session_state.current_reduction is not None:
     tab2D, tab3D = st.tabs(["2D", "3D"])
 
     with tab2D:
-        fig = plot_reduced_embeddings(st.session_state.reduced_embeddings, labels, dimensionality_reduction_option, type="2D")
+        fig = plot_reduced_embeddings(st.session_state.current_reduction, labels, dimensionality_reduction_option, type="2D")
         st.plotly_chart(fig, use_container_width=True, key="2D")
 
     with tab3D:
-        fig3D = plot_reduced_embeddings(st.session_state.reduced_embeddings, labels, dimensionality_reduction_option, type="3D")
+        fig3D = plot_reduced_embeddings(st.session_state.current_reduction, labels, dimensionality_reduction_option, type="3D")
         st.plotly_chart(fig3D, use_container_width=True, key="3D")
