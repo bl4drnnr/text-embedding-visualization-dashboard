@@ -2,9 +2,11 @@ import streamlit as st
 from pathlib import Path
 from text_embedding_visualization_dashboard.frontend.utils import load_reduction_results
 from text_embedding_visualization_dashboard.frontend.visualizations import plot_reduced_embeddings
+from text_embedding_visualization_dashboard.vector_db import VectorDB
+import json
 
 st.set_page_config(page_title="Saved Reductions", page_icon="📚", layout="wide", initial_sidebar_state="expanded")
-
+db = VectorDB()
 st.markdown(
     """
 <style>
@@ -23,7 +25,8 @@ Select a saved reduction from the list below to visualize it.
 """)
 
 saved_reductions_dir = Path("saved_reductions")
-saved_reductions = list(saved_reductions_dir.glob("*.pkl")) if saved_reductions_dir.exists() else []
+
+saved_reductions = db._get_saved_collections()
 
 if not saved_reductions:
     st.info("No saved reductions found. Go to the main page to create and save reductions.")
@@ -59,13 +62,19 @@ st.sidebar.markdown("---")
 st.sidebar.title("Saved Reductions")
 selected_reduction = st.sidebar.selectbox(
     "Select a reduction to view",
-    options=[f.stem for f in saved_reductions],
+    options=[f.name for f in saved_reductions],
     help="Choose a saved reduction to visualize",
 )
 
 if selected_reduction:
     try:
-        reduced_embeddings, labels, method, params = load_reduction_results(selected_reduction)
+        reduction_results, collection = load_reduction_results(
+            db=db, collection_name=selected_reduction, include=["embeddings", "metadatas"]
+        )
+        reduced_embeddings = reduction_results["embeddings"]
+        labels = [metadata["label"] for metadata in reduction_results["metadatas"]]
+        method = collection.metadata["method"]
+        params = json.loads(collection.metadata["params"])
 
         st.sidebar.markdown("---")
         st.sidebar.subheader("Reduction Details")

@@ -5,11 +5,11 @@ import pandas as pd
 import umap
 import trimap
 import pacmap
+from chromadb import GetResult
+from chromadb.api.models.Collection import Collection
 from sklearn.manifold import TSNE
 import numpy as np
 import json
-from pathlib import Path
-import pickle
 
 from text_embedding_visualization_dashboard.vector_db import VectorDB
 from text_embedding_visualization_dashboard.embeddings import Embeddings
@@ -185,49 +185,66 @@ def apply_dimensionality_reduction(embeddings: np.ndarray, method: str, params: 
 
 
 def save_reduction_results(
-    reduced_embeddings: np.ndarray, labels: list[str], method: str, params: dict, filename: str
+    db: VectorDB,
+    reduced_embeddings: np.ndarray,
+    labels: list[str],
+    collection_name: str,
+    type="reduced",
+    method: str = None,
+    params: dict = None,
 ) -> None:
     """
-    Save dimensionality reduction results to a file.
+    Save dimensionality reduction results to the vector database.
 
     Parameters:
+    db : VectorDB
+        The vector database instance where the data will be saved.
     reduced_embeddings : np.ndarray
-        The reduced embeddings (e.g., UMAP output)
-    labels : list[str]
-        The labels for each point
-    method : str
-        The dimensionality reduction method used (e.g., "UMAP")
-    params : dict
-        The parameters used for the reduction
-    filename : str
-        The name of the file to save to (without extension)
+        The reduced-dimensional embeddings (e.g., UMAP or t-SNE output).
+    labels : List[str]
+        A list of labels corresponding to each embedding.
+    collection_name : str
+        The name of the collection to save the results in.
+    type : str, optional
+        A string indicating the type of data (default is "reduced").
+    method : Optional[str], optional
+        The dimensionality reduction method used (e.g., "UMAP", "PCA").
+    params : Optional[Dict[str, Any]], optional
+        Parameters used for the dimensionality reduction method.
     """
-    save_dir = Path("saved_reductions")
-    save_dir.mkdir(exist_ok=True)
+    metadata = {"type": type}
 
-    data = {"reduced_embeddings": reduced_embeddings, "labels": labels, "method": method, "params": params}
+    if params is not None:
+        metadata["params"] = json.dumps(params)
+    if method is not None:
+        metadata["method"] = method
 
-    with open(save_dir / f"{filename}.pkl", "wb") as f:
-        pickle.dump(data, f)
+    db.add_collection(collection_name, metadata=metadata)
 
-    with open(save_dir / f"{filename}_params.json", "w") as f:
-        json.dump({"method": method, "params": params}, f, indent=2)
+    metadatas = [{"label": label} for label in labels]
+
+    db.add_reduced_to_collection(collection_name, list(reduced_embeddings), metadata=metadatas)
 
 
-def load_reduction_results(filename: str) -> tuple[np.ndarray, list[str], str, dict]:
+def load_reduction_results(db: VectorDB, collection_name: str, include=["embeddings"]) -> tuple[GetResult, Collection]:
     """
-    Load saved dimensionality reduction results.
+    Load saved dimensionality reduction results from the vector database.
 
     Parameters:
-    filename : str
-        The name of the file to load (without extension)
+    db : VectorDB
+        The vector database instance to load the data from.
+    collection_name : str
+        The name of the collection to load.
+    include : List[str], optional
+        List of fields to include in the result (default is ["embeddings"]).
 
     Returns:
-    tuple
-        (reduced_embeddings, labels, method, params)
+    Tuple[GetResult, Collection]
+        A tuple containing:
+        - reduction_results (GetResult): The reduced embeddings and associated metadata.
+        - collection (Collection): The collection wit
     """
-    save_dir = Path("saved_reductions")
-    with open(save_dir / f"{filename}.pkl", "rb") as f:
-        data = pickle.load(f)
 
-    return (data["reduced_embeddings"], data["labels"], data["method"], data["params"])
+    reduction_results = db.get_all_items_from_collection(collection_name, include=include)
+    collection = db.get_collection(collection_name)
+    return reduction_results, collection

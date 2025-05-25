@@ -18,21 +18,51 @@ class VectorDB:
 
     def get_all_collections(self) -> Sequence[Collection]:
         """
-        Get all collections from ChromaDb
+        Get all collections from the ChromaDB client.
         :return:
+        Sequence[Collection]: A list of all collections available in the database.
+        """
+        return self.client.list_collections()
+
+    def get_all_datasets(self) -> Sequence[Collection]:
+        """
+        Get all datasets from ChromaDb
+        :return:
+        Sequence[Collection]: A list of all embedded datasets available in the database.
         """
         logger.info("Getting all collections")
         all_collections = self.client.list_collections()
 
         filtered_collections = []
         for collection in all_collections:
-            if collection.metadata and collection.metadata.get("type") == "reduced":
+            if collection.metadata and collection.metadata.get("type") in ("reduced", "saved"):
                 continue
             filtered_collections.append(collection)
 
         return filtered_collections
 
+    def _get_saved_collections(self):
+        """
+        Get all collections after dimensionality reduction saved by user
+        :return:
+        Sequence[Collection]: A list of all collections after dimensionality reduction saved by user
+        """
+
+        all_collections = self.client.list_collections()
+
+        filtered_collections = []
+        for collection in all_collections:
+            if collection.metadata and collection.metadata.get("type") == "saved":
+                filtered_collections.append(collection)
+
+        return filtered_collections
+
     def _get_reduced_collections(self):
+        """
+        Get all collections after dimensionality reduction
+        :return:
+        Sequence[Collection]: A list of all collections after dimensionality reduction
+        """
         all_collections = self.client.list_collections()
 
         filtered_collections = []
@@ -61,7 +91,7 @@ class VectorDB:
         :param metadata: Optional metadata to store with the collection
         :return:
         """
-        if name not in [elem.name for elem in self.get_all_collections()]:
+        if name not in [elem.name for elem in self.get_all_datasets()]:
             collection_metadata = metadata or {"created": str(datetime.now())}
             if "created" not in collection_metadata:
                 collection_metadata["created"] = str(datetime.now())
@@ -84,7 +114,7 @@ class VectorDB:
         :return: None
         """
         logger.info(f"Deleting collection {name}")
-        if name not in [elem.name for elem in self.get_all_collections()]:
+        if name not in [elem.name for elem in self.get_all_datasets()]:
             logger.error(f"Collection {name} does not exist.")
         else:
             self.client.delete_collection(name)

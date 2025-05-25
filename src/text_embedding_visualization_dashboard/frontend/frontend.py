@@ -6,6 +6,7 @@ from text_embedding_visualization_dashboard.frontend.utils import (
     get_embeddings,
     create_embeddings,
     save_reduction_results,
+    load_reduction_results,
 )
 from text_embedding_visualization_dashboard.frontend.visualizations import plot_reduced_embeddings
 from text_embedding_visualization_dashboard.vector_db import VectorDB
@@ -85,28 +86,6 @@ st.sidebar.markdown(
 st.sidebar.markdown("---")
 st.sidebar.header("Settings")
 
-model_option = st.sidebar.selectbox(
-    "Choose an embedding model",
-    options=list(AVAILABLE_MODELS.keys()),
-    index=list(AVAILABLE_MODELS.keys()).index("all-MiniLM-L6-v2"),
-    help="Select the model to use for generating embeddings. Speed indicates sentences per second, size indicates model size.",
-    disabled=st.session_state.is_processing,
-)
-
-model_specs = AVAILABLE_MODELS[model_option]
-st.sidebar.markdown(f"""
-**Model Specifications:**
-- Speed: {model_specs["speed"]} sentences/sec
-- Size: {model_specs["size"]}
-""")
-
-if "current_model" not in st.session_state:
-    st.session_state.current_model = model_option
-    st.session_state.embeddings_instance = Embeddings(db, model_name=model_option)
-    st.session_state.is_processing = False
-elif st.session_state.current_model != model_option:
-    st.session_state.current_model = model_option
-    st.session_state.embeddings_instance = Embeddings(db, model_name=model_option)
 
 dataset_option = st.selectbox(
     "Choose a data source", ["Upload your own data", "Existing dataset"], disabled=st.session_state.is_processing
@@ -115,6 +94,29 @@ dataset_option = st.selectbox(
 uploaded_file = None
 dataset_name = None
 if dataset_option == "Upload your own data":
+    model_option = st.selectbox(
+        "Choose an embedding model",
+        options=list(AVAILABLE_MODELS.keys()),
+        index=list(AVAILABLE_MODELS.keys()).index("all-MiniLM-L6-v2"),
+        help="Select the model to use for generating embeddings. Speed indicates sentences per second, size indicates model size.",
+        disabled=st.session_state.is_processing,
+    )
+
+    model_specs = AVAILABLE_MODELS[model_option]
+    st.markdown(f"""
+    **Model Specifications:**
+    - Speed: {model_specs["speed"]} sentences/sec
+    - Size: {model_specs["size"]}
+    """)
+
+    if "current_model" not in st.session_state:
+        st.session_state.current_model = model_option
+        st.session_state.embeddings_instance = Embeddings(db, model_name=model_option)
+        st.session_state.is_processing = False
+    elif st.session_state.current_model != model_option:
+        st.session_state.current_model = model_option
+        st.session_state.embeddings_instance = Embeddings(db, model_name=model_option)
+
     uploaded_file = st.file_uploader("Upload CSV file", type=["csv"], disabled=st.session_state.is_processing)
     if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
@@ -142,8 +144,9 @@ if dataset_option == "Upload your own data":
 
 
 if dataset_option == "Existing dataset":
-    collections = [col.name for col in db.get_all_collections()]
+    collections = [col.name for col in db.get_all_datasets()]
     dataset_name = st.selectbox("Choose a dataset", collections, disabled=st.session_state.is_processing)
+    st.session_state.current_reduction = None
 
 dimensionality_reduction_option = st.sidebar.selectbox(
     "Choose a dimensionality reduction technique",
@@ -249,9 +252,8 @@ if dataset_size is not None:
             + "__".join(f"{k}-{v}" for k, v in dr_params[dimensionality_reduction_option].items())
         )
         if reduction_options_str in [col.name for col in db._get_reduced_collections()]:
-            st.session_state.current_reduction = db.get_all_items_from_collection(
-                reduction_options_str, include=["embeddings"]
-            )["embeddings"]
+            reduction_results, _ = load_reduction_results(db, reduction_options_str, include=["embeddings"])
+            st.session_state.current_reduction = reduction_results["embeddings"]
             st.session_state.is_processing = False
         else:
             try:
@@ -259,11 +261,12 @@ if dataset_size is not None:
                     st.session_state.current_reduction = apply_dimensionality_reduction(
                         embeddings, dimensionality_reduction_option, dr_params[dimensionality_reduction_option]
                     )
-
-                    db.add_collection(reduction_options_str, metadata={"type": "reduced"})
-                    metadatas = [{"label": label} for label in labels]
-                    db.add_reduced_to_collection(
-                        reduction_options_str, list(st.session_state.current_reduction), metadata=metadatas
+                    save_reduction_results(
+                        db=db,
+                        reduced_embeddings=st.session_state.current_reduction,
+                        labels=labels,
+                        collection_name=reduction_options_str,
+                        type="reduced",
                     )
             finally:
                 st.session_state.is_processing = False
@@ -277,11 +280,13 @@ if embeddings is not None and st.session_state.current_reduction is not None:
     if st.sidebar.button("Save Reduction") and save_name:
         try:
             save_reduction_results(
-                st.session_state.current_reduction,
-                labels,
-                dimensionality_reduction_option,
-                dr_params[dimensionality_reduction_option],
-                save_name,
+                db=db,
+                reduced_embeddings=st.session_state.current_reduction,
+                labels=labels,
+                method=dimensionality_reduction_option,
+                params=dr_params[dimensionality_reduction_option],
+                collection_name=save_name,
+                type="saved",
             )
 
             st.sidebar.success(f"Saved reduction as '{save_name}'")
