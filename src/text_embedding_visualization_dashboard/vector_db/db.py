@@ -18,11 +18,59 @@ class VectorDB:
 
     def get_all_collections(self) -> Sequence[Collection]:
         """
-        Get all collections from ChromaDb
+        Get all collections from the ChromaDB client.
         :return:
+        Sequence[Collection]: A list of all collections available in the database.
+        """
+        return self.client.list_collections()
+
+    def get_all_datasets(self) -> Sequence[Collection]:
+        """
+        Get all datasets from ChromaDb
+        :return:
+        Sequence[Collection]: A list of all embedded datasets available in the database.
         """
         logger.info("Getting all collections")
-        return self.client.list_collections()
+        all_collections = self.client.list_collections()
+
+        filtered_collections = []
+        for collection in all_collections:
+            if collection.metadata and collection.metadata.get("type") in ("reduced", "saved"):
+                continue
+            filtered_collections.append(collection)
+
+        return filtered_collections
+
+    def _get_saved_collections(self):
+        """
+        Get all collections after dimensionality reduction saved by user
+        :return:
+        Sequence[Collection]: A list of all collections after dimensionality reduction saved by user
+        """
+
+        all_collections = self.client.list_collections()
+
+        filtered_collections = []
+        for collection in all_collections:
+            if collection.metadata and collection.metadata.get("type") == "saved":
+                filtered_collections.append(collection)
+
+        return filtered_collections
+
+    def _get_reduced_collections(self):
+        """
+        Get all collections after dimensionality reduction
+        :return:
+        Sequence[Collection]: A list of all collections after dimensionality reduction
+        """
+        all_collections = self.client.list_collections()
+
+        filtered_collections = []
+        for collection in all_collections:
+            if collection.metadata and collection.metadata.get("type") == "reduced":
+                filtered_collections.append(collection)
+
+        return filtered_collections
 
     def get_collection(self, name: str) -> Collection:
         """
@@ -34,10 +82,7 @@ class VectorDB:
         return self.client.get_collection(name)
 
     def add_collection(
-        self, 
-        name: str, 
-        distance: Literal["cosine", "l2", "ip"] = "cosine",
-        metadata: dict | None = None
+        self, name: str, distance: Literal["cosine", "l2", "ip"] = "cosine", metadata: dict | None = None
     ) -> None:
         """
         Adds a collection to the ChromaDb
@@ -46,11 +91,11 @@ class VectorDB:
         :param metadata: Optional metadata to store with the collection
         :return:
         """
-        if name not in [elem.name for elem in self.get_all_collections()]:
+        if name not in [elem.name for elem in self.get_all_datasets()]:
             collection_metadata = metadata or {"created": str(datetime.now())}
             if "created" not in collection_metadata:
                 collection_metadata["created"] = str(datetime.now())
-                
+
             self.client.create_collection(
                 name=name,
                 metadata=collection_metadata,
@@ -69,7 +114,7 @@ class VectorDB:
         :return: None
         """
         logger.info(f"Deleting collection {name}")
-        if name not in [elem.name for elem in self.get_all_collections()]:
+        if name not in [elem.name for elem in self.get_all_datasets()]:
             logger.error(f"Collection {name} does not exist.")
         else:
             self.client.delete_collection(name)
@@ -167,3 +212,33 @@ class VectorDB:
         logger.info(f"Getting all items from collection {name}")
         collection = self.get_collection(name)
         return collection.get(include=include)
+
+    def add_reduced_to_collection(
+        self,
+        name: str,
+        vectors: list[list[float]],
+        ids: list[str] | None = None,
+        metadata: list[dict[str, str]] | None = None,
+    ) -> None:
+        """
+        Adds 3D vectors to a collection without requiring text documents
+        :param name: collection name
+        :param vectors: List of 3D vectors [[x1, y1, z1], [x2, y2, z2], ...]
+        :param ids: Ids to store, None by default
+        :param metadata: Metadata to store, None by default
+        :return: None
+        """
+        collection = self.get_collection(name)
+        if ids is None:
+            ids = [f"reduced_{i}" for i in range(len(vectors))]
+
+        add_kwargs = {
+            "embeddings": vectors,
+            "ids": ids,
+        }
+
+        if metadata is not None:
+            add_kwargs["metadatas"] = metadata
+
+        collection.add(**add_kwargs)
+        logger.info(f"Added {len(vectors)} reduced to {collection.name}")
