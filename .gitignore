@@ -181,3 +181,5 @@ cython_debug/
 
 uv.lock
 .DS_Store
+
+/saved_reductions/*
