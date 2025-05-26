@@ -47,15 +47,14 @@ class VectorDB:
         :return:
         Sequence[Collection]: A list of all collections after dimensionality reduction saved by user
         """
-
         all_collections = self.client.list_collections()
-
-        filtered_collections = []
+        
+        saved_collections = []
         for collection in all_collections:
             if collection.metadata and collection.metadata.get("type") == "saved":
-                filtered_collections.append(collection)
+                saved_collections.append(collection)
 
-        return filtered_collections
+        return saved_collections
 
     def _get_reduced_collections(self):
         """
@@ -91,7 +90,7 @@ class VectorDB:
         :param metadata: Optional metadata to store with the collection
         :return:
         """
-        if name not in [elem.name for elem in self.get_all_datasets()]:
+        if name not in [elem.name for elem in self.get_all_collections()]:
             collection_metadata = metadata or {"created": str(datetime.now())}
             if "created" not in collection_metadata:
                 collection_metadata["created"] = str(datetime.now())

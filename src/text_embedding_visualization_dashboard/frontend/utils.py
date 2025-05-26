@@ -195,25 +195,8 @@ def save_reduction_results(
 ) -> None:
     """
     Save dimensionality reduction results to the vector database.
-
-    Parameters:
-    db : VectorDB
-        The vector database instance where the data will be saved.
-    reduced_embeddings : np.ndarray
-        The reduced-dimensional embeddings (e.g., UMAP or t-SNE output).
-    labels : List[str]
-        A list of labels corresponding to each embedding.
-    collection_name : str
-        The name of the collection to save the results in.
-    type : str, optional
-        A string indicating the type of data (default is "reduced").
-    method : Optional[str], optional
-        The dimensionality reduction method used (e.g., "UMAP", "PCA").
-    params : Optional[Dict[str, Any]], optional
-        Parameters used for the dimensionality reduction method.
     """
     metadata = {"type": type}
-
     if params is not None:
         metadata["params"] = json.dumps(params)
     if method is not None:
@@ -221,7 +204,15 @@ def save_reduction_results(
 
     db.add_collection(collection_name, metadata=metadata)
 
-    metadatas = [{"label": label} for label in labels]
+    metadatas = [
+        {
+            "label": label,
+            "type": type,
+            "method": method if method is not None else "",
+            "params": json.dumps(params) if params is not None else ""
+        }
+        for label in labels
+    ]
 
     db.add_reduced_to_collection(collection_name, list(reduced_embeddings), metadata=metadatas)
 
