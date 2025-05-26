@@ -204,15 +204,7 @@ def save_reduction_results(
 
     db.add_collection(collection_name, metadata=metadata)
 
-    metadatas = [
-        {
-            "label": label,
-            "type": type,
-            "method": method if method is not None else "",
-            "params": json.dumps(params) if params is not None else ""
-        }
-        for label in labels
-    ]
+    metadatas = [{"label": label} for label in labels]
 
     db.add_reduced_to_collection(collection_name, list(reduced_embeddings), metadata=metadatas)
 

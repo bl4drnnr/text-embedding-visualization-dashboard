@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import traceback
 
 from text_embedding_visualization_dashboard.frontend.utils import (
     apply_dimensionality_reduction,
@@ -19,6 +18,9 @@ if "embeddings_instance" not in st.session_state:
     st.session_state.embeddings_instance = Embeddings(VectorDB(), model_name="all-MiniLM-L6-v2")
 if "current_model" not in st.session_state:
     st.session_state.current_model = "all-MiniLM-L6-v2"
+if "disabled" not in st.session_state:
+    st.session_state.disabled = True
+    st.session_state.custom_save_name = ""
 
 AVAILABLE_MODELS = {
     "all-mpnet-base-v2": {"speed": 2800, "size": "420 MB"},
@@ -149,7 +151,7 @@ if dataset_option == "Upload your own data":
 if dataset_option == "Existing dataset":
     collections = [col.name for col in db.get_all_datasets()]
     dataset_name = st.selectbox("Choose a dataset", collections, disabled=st.session_state.is_processing)
-    st.session_state.current_reduction = None
+
 
 dimensionality_reduction_option = st.sidebar.selectbox(
     "Choose a dimensionality reduction technique",
@@ -275,64 +277,65 @@ if dataset_size is not None:
                 st.session_state.is_processing = False
 
 if embeddings is not None and st.session_state.current_reduction is not None:
-    if 'save_clicked' not in st.session_state:
+    if "save_clicked" not in st.session_state:
         st.session_state.save_clicked = False
-    if 'custom_save_name' not in st.session_state:
-        st.session_state.custom_save_name = (
-            dataset_name
-            + "__"
-            + dimensionality_reduction_option
-            + "__"
-            + "__".join(f"{k}-{v}" for k, v in dr_params[dimensionality_reduction_option].items())
-            + "__saved"
-        )
 
     def handle_save():
         try:
-            save_name = st.session_state.custom_save_name
-            
-            if "current_reduction" not in st.session_state or st.session_state.current_reduction is None:
-                st.error("No reduction results to save. Please perform a reduction first.")
-                return
-                
-            save_reduction_results(
-                db=db,
-                reduced_embeddings=st.session_state.current_reduction,
-                labels=labels,
-                method=dimensionality_reduction_option,
-                params=dr_params[dimensionality_reduction_option],
-                collection_name=save_name,
-                type="saved",
-            )
-            st.success(f"Successfully saved reduction as '{save_name}'")
-            
+            if st.session_state.custom_save_name != "":
+                save_name = st.session_state.custom_save_name
+                if "current_reduction" not in st.session_state or st.session_state.current_reduction is None:
+                    st.error("No reduction results to save. Please perform a reduction first.")
+                    return
+
+                save_reduction_results(
+                    db=db,
+                    reduced_embeddings=st.session_state.current_reduction,
+                    labels=labels,
+                    method=dimensionality_reduction_option,
+                    params=dr_params[dimensionality_reduction_option],
+                    collection_name=save_name,
+                    type="saved",
+                )
+                st.success(f"Successfully saved reduction as '{save_name}'")
+                st.session_state.custom_save_name = ""
+
         except Exception as e:
-            st.error("An unexpected error occurred while saving. Please try again.")
+            st.error(f"An unexpected error occurred while saving: {str(e)}. Please try again.")
 
-    save_container = st.container()
-    with save_container:
-        st.markdown("---")
-        st.subheader("Save Current Reduction")
-        st.info(f"This reduction will be saved as: `{st.session_state.custom_save_name}`")
-        
-        save_button = st.button(
-            "💾 Save Reduction",
-            key="save_reduction_button",
-            on_click=handle_save,
-            use_container_width=True,
-            type="primary"
-        )
+    if len(labels) == len(st.session_state.current_reduction):
+        tab2D, tab3D = st.tabs(["2D", "3D"])
 
-    tab2D, tab3D = st.tabs(["2D", "3D"])
+        with tab2D:
+            fig = plot_reduced_embeddings(
+                st.session_state.current_reduction, labels, dimensionality_reduction_option, type="2D"
+            )
+            st.plotly_chart(fig, use_container_width=True, key="2D")
 
-    with tab2D:
-        fig = plot_reduced_embeddings(
-            st.session_state.current_reduction, labels, dimensionality_reduction_option, type="2D"
-        )
-        st.plotly_chart(fig, use_container_width=True, key="2D")
+        with tab3D:
+            fig3D = plot_reduced_embeddings(
+                st.session_state.current_reduction, labels, dimensionality_reduction_option, type="3D"
+            )
+            st.plotly_chart(fig3D, use_container_width=True, key="3D")
 
-    with tab3D:
-        fig3D = plot_reduced_embeddings(
-            st.session_state.current_reduction, labels, dimensionality_reduction_option, type="3D"
-        )
-        st.plotly_chart(fig3D, use_container_width=True, key="3D")
+        save_container = st.container()
+
+        with save_container:
+            st.markdown("---")
+            st.subheader("Save Current Reduction")
+
+            st.text_input(
+                "Save reduction as", help="Enter a name to save the current reduction", key="custom_save_name"
+            )
+
+            if st.session_state.custom_save_name != "":
+                st.session_state.disabled = False
+
+            save_button = st.button(
+                "💾 Save Reduction",
+                key="save_reduction_button",
+                on_click=handle_save,
+                use_container_width=True,
+                type="primary",
+                disabled=st.session_state.disabled,
+            )
