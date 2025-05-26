@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import traceback
 
 from text_embedding_visualization_dashboard.frontend.utils import (
     apply_dimensionality_reduction,
@@ -302,7 +301,7 @@ if embeddings is not None and st.session_state.current_reduction is not None:
                 st.session_state.custom_save_name = ""
 
         except Exception as e:
-            st.error("An unexpected error occurred while saving. Please try again.")
+            st.error(f"An unexpected error occurred while saving: {str(e)}. Please try again.")
 
     if len(labels) == len(st.session_state.current_reduction):
         tab2D, tab3D = st.tabs(["2D", "3D"])
