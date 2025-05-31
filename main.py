@@ -24,8 +24,8 @@ def main():
 
         texts = df["text"].tolist()
 
-        if "labels" in df.columns:
-            metadatas = [{"label": str(label)} for label in df["labels"]]
+        if "label" in df.columns:
+            metadatas = [{"label": str(label)} for label in df["label"]]
         else:
             metadatas = None
 

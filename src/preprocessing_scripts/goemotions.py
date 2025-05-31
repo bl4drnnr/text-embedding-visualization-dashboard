@@ -24,4 +24,4 @@ def preprocess_goemotions(dataset_id):
 
 
 if __name__ == "__main__":
-    preprocess_goemotions(1)
+    preprocess_goemotions(3)

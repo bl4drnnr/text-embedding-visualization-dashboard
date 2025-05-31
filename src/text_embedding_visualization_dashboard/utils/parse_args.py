@@ -5,7 +5,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Text Embedding Generator for Datasets and VectorDB Storage",
         epilog="""
-        Przykłady użycia:
+        Example usage:
 
         python3 main.py --mode upload --model all-MiniLM-L6-v2 --dataset data/goemotions_1.csv data/goemotions_2.csv --collection goemotions_embeddings
 

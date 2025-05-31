@@ -195,6 +195,7 @@ def save_reduction_results(
 ) -> None:
     """
     Save dimensionality reduction results to the vector database.
+    Handles large datasets by saving them in smaller batches.
     """
     metadata = {"type": type}
     if params is not None:
@@ -204,9 +205,20 @@ def save_reduction_results(
 
     db.add_collection(collection_name, metadata=metadata)
 
+    embeddings_list = list(reduced_embeddings)
     metadatas = [{"label": label} for label in labels]
-
-    db.add_reduced_to_collection(collection_name, list(reduced_embeddings), metadata=metadatas)
+    
+    BATCH_SIZE = 5000
+    
+    for i in range(0, len(embeddings_list), BATCH_SIZE):
+        batch_embeddings = embeddings_list[i:i + BATCH_SIZE]
+        batch_metadatas = metadatas[i:i + BATCH_SIZE]
+        
+        db.add_reduced_to_collection(
+            collection_name,
+            batch_embeddings,
+            metadata=batch_metadatas
+        )
 
 
 def load_reduction_results(db: VectorDB, collection_name: str, include=["embeddings"]) -> tuple[GetResult, Collection]:
