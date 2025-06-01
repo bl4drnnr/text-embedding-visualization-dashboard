@@ -4,7 +4,6 @@ from src.text_embedding_visualization_dashboard.vector_db.db import VectorDB
 from src.text_embedding_visualization_dashboard.utils.parse_args import parse_args
 
 
-# UWAGA: Tu w tym momencie są tylko przykładowe testowe funkcje, aby zobaczyć, że ta baza oraz embeddingi działają.
 def main():
     args = parse_args()
 

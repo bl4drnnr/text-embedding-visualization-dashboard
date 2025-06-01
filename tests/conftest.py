@@ -6,9 +6,8 @@ from sentence_transformers import SentenceTransformer
 @pytest.fixture(scope="session")
 def vector_db():
     """Provides a VectorDB instance for testing."""
-    db = VectorDB()  # adjust if it needs config
+    db = VectorDB()
     yield db
-    # If there's a close/cleanup method
     if hasattr(db, "close"):
         db.close()
 
